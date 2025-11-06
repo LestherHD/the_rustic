@@ -55,8 +55,8 @@ class AutoScaffoldCommand extends Command
         // 2. Generar Filament Resource
         if ($this->confirm("¿Desea crear el Filament Resource?", true)) {
             Artisan::call("make:filament-resource", [
-                "name" => "{$this->modelName}Resource",
-                "--generate" => true
+                'model' => $this->modelName,
+                '--generate' => true,
             ]);
             $this->info("✨ Filament Resource generado: {$this->modelName}Resource");
         }
