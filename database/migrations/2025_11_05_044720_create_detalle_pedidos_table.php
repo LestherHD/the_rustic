@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('detalle_pedidos', function (Blueprint $table) {
             $table->id();
-            $table->integer(cantidad)->default(1);
+            $table->integer('cantidad')->default(1);
             $table->decimal('precio_unitario',8,2)->default(0);
-            $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
-            $table->foreignId('plato_id')->constrained()->onDelete('cascade');
+            $table->foreignId('pedido_id')->constrained('pedidos')->onDelete('cascade');
+            $table->foreignId('plato_id')->constrained('platos')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });

@@ -17,7 +17,7 @@ return new class extends Migration
             $table->decimal('monto', 10, 2);
             $table->string('referencia', 100)->nullable();
             $table->string('comentario', 100)->nullable();
-            $table->foreign('venta_id')->references('id')->on('ventas')->onDelete('cascade');
+            $table->foreignId('venta_id')->constrained('ventas')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });

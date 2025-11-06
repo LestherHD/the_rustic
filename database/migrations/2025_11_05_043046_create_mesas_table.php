@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('mesas', function (Blueprint $table) {
             $table->id();
-            $table->string('nombre',100);
+            $table->string('nombre',100)->unique();
             $table->integer('pos_x');
             $table->integer('pos_y');
             $table->integer('capacidad')->default(4);
-            $table->enum('estado',['libre','en_atencion','ocupada','cerrada'])->default('libre');
-            $table->boolean('')->default(false);
+            $table->enum('estado_mesa',['libre','en_atencion','ocupada'])->default('libre');
+            $table->boolean('estado')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });

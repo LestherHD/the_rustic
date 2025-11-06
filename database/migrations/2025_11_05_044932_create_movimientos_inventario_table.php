@@ -16,10 +16,9 @@ return new class extends Migration
             $table->enum('tipo_movimiento',['entrada','salida']);
             $table->decimal('cantidad',8,2);
             $table->string('referencia_tipo',50)->nullable();
-            $table->unsignedBigInteger('referencia_id')->nullable(); //DUDOTA
             $table->text('comentario')->nullable();
-            $table->timestamps('fecha_movimiento')->useCurrent();
-            $table->foreign('ingrediente_id')->references('id')->on('ingredientes')->onDelete('cascade');//DUDA
+            $table->date('fecha_movimiento')->nullable();
+            $table->foreignId('ingrediente_id')->constrained('ingredientes')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });

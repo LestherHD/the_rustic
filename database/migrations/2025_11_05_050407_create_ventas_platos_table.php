@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('ventas', function (Blueprint $table) {
             $table->id();
             $table->decimal('total', 10, 2);
-            $table->timestamp('fecha_venta')->useCurrent();
-            $table->foreignId('pedido_id')->constrained()->onDelete('cascade');
+            $table->date('fecha_venta');
+            $table->foreignId('pedido_id')->constrained('pedidos')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });

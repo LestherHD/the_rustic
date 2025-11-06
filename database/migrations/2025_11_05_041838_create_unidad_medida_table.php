@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('costos_platos', function (Blueprint $table) {
+        Schema::create('unidad_medida', function (Blueprint $table) {
             $table->id();
-            $table->decimal('costo_total', 10, 2);
-            $table->decimal('costo_utilidad', 10, 2);
-            $table->decimal('sugerencia_precio_venta', 10, 2)->nullable();
-            $table->foreignId('plato_id')->constrained('platos')->onDelete('cascade');
+            $table->string('nombre', 50)->unique();
+            $table->string('abreviatura', 10);
+            $table->boolean('activo')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });
@@ -27,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('costos_platos');
+        Schema::dropIfExists('unidad_medida');
     }
 };

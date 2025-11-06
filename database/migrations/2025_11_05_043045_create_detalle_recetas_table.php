@@ -14,11 +14,11 @@ return new class extends Migration
         Schema::create('detalle_recetas', function (Blueprint $table) {
             $table->id();
             $table->enum('tipo',['ingrediente','subreceta']);
-            $table->decimal(cantidad,8,2);
+            $table->decimal('cantidad',8,2);
             $table->foreignId('receta_id')->constrained()->onDelete('cascade');
-            $table->foreignId('ingrediente_id')->nullable()->constrained()->onDelete('cascade');
-            $table->foreignId('subreceta_id')->nullable()->constrained('recetas')->onDelete('cascade');
-            $table->bolean('activo')->default(true);
+            $table->foreignId('ingrediente_id')->constrained()->onDelete('cascade');
+            $table->foreignId('subreceta_id')->constrained('recetas')->onDelete('cascade');
+            $table->boolean('estado')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });

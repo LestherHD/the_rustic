@@ -14,11 +14,10 @@ return new class extends Migration
         Schema::create('recetas', function (Blueprint $table) {
             $table->id();
             $table->string('nombre', 100);
-            $table->integer('version')->default(1);
+            $table->integer('version')->nullable()->default(1);
             $table->text('observaciones')->nullable();
-            $table->bolean('activo')->default(true);
-            $table->foreignId('plato_id')->nullable()->constrained()->onDelete('cascade'); //DUDA DEL ONDELETE
-            $table->bolean('activo')->default(false);
+            $table->foreignId('plato_id')->constrained()->onDelete('cascade');
+            $table->boolean('estado')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });
