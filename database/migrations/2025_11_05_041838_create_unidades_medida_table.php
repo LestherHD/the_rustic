@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('detalle_pedidos', function (Blueprint $table) {
+        Schema::create('unidades_medida', function (Blueprint $table) {
             $table->id();
-            $table->integer('cantidad')->default(1);
-            $table->decimal('precio_unitario',8,2)->default(0);
-            $table->foreignId('pedido_id')->constrained('pedidos')->onDelete('cascade');
-            $table->foreignId('plato_id')->constrained('platos')->onDelete('cascade');
+            $table->string('nombre', 50)->unique();
+            $table->string('abreviatura', 10);
+            $table->boolean('activo')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });
@@ -27,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('detalle_pedidos');
+        Schema::dropIfExists('unidades_medida');
     }
 };

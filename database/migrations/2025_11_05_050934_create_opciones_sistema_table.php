@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('configuraciones', function (Blueprint $table) {
+        Schema::create('opciones_sistema', function (Blueprint $table) {
             $table->id();
             $table->string('clave', 100)->unique();
             $table->string('valor', 255)->nullable();
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('configuraciones');
+        Schema::dropIfExists('opciones_sistema');
     }
 };

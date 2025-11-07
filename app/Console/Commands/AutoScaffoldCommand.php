@@ -9,11 +9,13 @@ use Doctrine\DBAL\DriverManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class AutoScaffoldCommand extends Command
 {
     protected $signature = 'scaffolding:auto {model} {table}';
-    protected $description = 'Genera Modelo (con stub), Filament Resource, ApiController y Seeder basados en la tabla y modelo especificados';
+    protected $description = 'Genera Modelo, Filament Resource, ApiController y Seeder basados en la tabla y modelo especificados';
 
     private $schema;
     private $tableName;
@@ -25,7 +27,6 @@ class AutoScaffoldCommand extends Command
         $this->modelName = Str::studly($this->argument('model'));
         $pdo = DB::connection()->getPdo();
 
-        // Crear la conexión Doctrine con ese PDO
         $doctrineConnection = DriverManager::getConnection([
             'pdo' => $pdo,
             'dbname'   => config('database.connections.mysql.database'),
@@ -35,7 +36,6 @@ class AutoScaffoldCommand extends Command
             'driver'   => 'pdo_mysql',
         ]);
 
-        // Crear el schema manager
         $this->schema = $doctrineConnection->createSchemaManager();
 
         $this->line("─────────────────────────────────────────────");
@@ -52,22 +52,101 @@ class AutoScaffoldCommand extends Command
             $this->generateModel();
         }
 
-        // 2. Generar Filament Resource
+        // 2. Generar Filament Resource con Process y respuesta automática
         if ($this->confirm("¿Desea crear el Filament Resource?", true)) {
-            Artisan::call("make:filament-resource", [
-                'model' => $this->modelName,
-                '--generate' => true,
+            $this->line("⏳ Generando Filament Resource para el panel 'admin'...");
+
+            $process = new Process([
+                'php', 'artisan', 'make:filament-resource',
+                $this->modelName,
+                '--panel=admin',
+                '--generate',
+                '--force'
             ]);
-            $this->info("✨ Filament Resource generado: {$this->modelName}Resource");
+
+            $process->setInput("\n"); // simular ENTER en el prompt
+
+            try {
+                $process->run();
+
+                if ($process->isSuccessful()) {
+                    $this->info("✅ Filament Resource generado con éxito:");
+                    $this->line($process->getOutput());
+                } else {
+                    $this->error("❌ Error al generar el resource:");
+                    $this->line($process->getErrorOutput());
+                }
+            } catch (ProcessFailedException $e) {
+                $this->error("💥 Excepción: " . $e->getMessage());
+            }
         }
 
-        // 3. Generar ApiController
-        if ($this->confirm("¿Desea crear también un ApiController?", false)) {
-            Artisan::call("make:controller", [
-                "name" => "{$this->modelName}ApiController",
-                "--api" => true
-            ]);
-            $this->info("📡 ApiController generado: {$this->modelName}ApiController");
+        // 3. Generar ApiController con Spatie QueryBuilder
+        if ($this->confirm("¿Desea crear también un ApiController con QueryBuilder?", true)) {
+            $controllerName = "{$this->modelName}ApiController";
+            $controllerPath = app_path("Http/Controllers/Api/{$controllerName}.php");
+
+            if (!File::exists(app_path('Http/Controllers/Api'))) {
+                File::makeDirectory(app_path('Http/Controllers/Api'), 0755, true);
+            }
+
+            $stub = <<<EOT
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\\{$this->modelName};
+use Illuminate\Http\Request;
+use Spatie\QueryBuilder\QueryBuilder;
+use App\Http\Controllers\Controller;
+
+class {$controllerName} extends Controller
+{
+    public function index(Request \$request)
+    {
+        \$items = QueryBuilder::for({$this->modelName}::class)
+            ->allowedFilters(['nombre'])
+            ->allowedSorts(['id', 'created_at'])
+            ->paginate();
+
+        return response()->json(\$items);
+    }
+
+    public function store(Request \$request)
+    {
+        \$data = \$request->validate({$this->modelName}::\$rules);
+        \$item = {$this->modelName}::create(\$data);
+
+        return response()->json(\$item, 201);
+    }
+
+    public function show(\$id)
+    {
+        \$item = {$this->modelName}::findOrFail(\$id);
+        return response()->json(\$item);
+    }
+
+    public function update(Request \$request, \$id)
+    {
+        \$item = {$this->modelName}::findOrFail(\$id);
+        \$data = \$request->validate({$this->modelName}::\$rules);
+        \$item->update(\$data);
+
+        return response()->json(\$item);
+    }
+
+    public function destroy(\$id)
+    {
+        \$item = {$this->modelName}::findOrFail(\$id);
+        \$item->delete();
+
+        return response()->json(null, 204);
+    }
+}
+EOT;
+
+            File::put($controllerPath, $stub);
+            $this->info("📡 ApiController generado con QueryBuilder: App\\Http\\Controllers\\Api\\{$controllerName}");
         }
 
         // 4. Generar Seeder
@@ -89,12 +168,10 @@ class AutoScaffoldCommand extends Command
     {
         $columns = Schema::getColumnListing($this->tableName);
 
-        // Fillable
         $excluded = ['id', 'created_at', 'updated_at', 'deleted_at'];
         $fillable = array_diff($columns, $excluded);
         $fillableString = '[' . PHP_EOL . '        \'' . implode("',\n        '", $fillable) . '\'' . PHP_EOL . '    ]';
 
-        // Casts básicos
         $castsArray = [];
         foreach ($columns as $col) {
             if ($col === 'id') {
@@ -111,7 +188,6 @@ class AutoScaffoldCommand extends Command
         }
         $castsString .= '    ]';
 
-        // Validation rules
         $rulesArray = [];
         foreach ($fillable as $col) {
             $rulesArray[$col] = 'required';
@@ -122,16 +198,13 @@ class AutoScaffoldCommand extends Command
         }
         $rulesString .= '    ]';
 
-        // SoftDeletes
         $useSoftDeletes = in_array('deleted_at', $columns)
             ? 'use Illuminate\\Database\\Eloquent\\SoftDeletes;' : '';
         $softDeletesTrait = in_array('deleted_at', $columns)
             ? 'use SoftDeletes;' : '';
 
-        // Relaciones
         $relationshipsString = $this->generateRelationships();
 
-        // Cargar stub
         $stub = file_get_contents(base_path('stubs/custom-model.stub'));
 
         $stub = str_replace(
@@ -161,7 +234,6 @@ class AutoScaffoldCommand extends Command
         );
 
         file_put_contents(app_path("Models/{$this->modelName}.php"), $stub);
-
         $this->info("✅ Modelo generado en: App\\Models\\{$this->modelName}");
     }
 
@@ -174,11 +246,9 @@ class AutoScaffoldCommand extends Command
             $localColumn = $foreignKey->getLocalColumns()[0];
             $foreignTable = $foreignKey->getForeignTableName();
             $foreignColumn = $foreignKey->getForeignColumns()[0];
-
             $relatedModel = Str::studly(Str::singular($foreignTable));
-
-            // belongsTo (cuando esta tabla tiene FK hacia otra)
             $functionName = Str::camel(Str::singular($foreignTable));
+
             $relationships[] = <<<EOT
     public function {$functionName}()
     {
@@ -187,7 +257,6 @@ class AutoScaffoldCommand extends Command
 EOT;
         }
 
-        // hasMany (otras tablas apuntan a esta)
         $allTables = $this->schema->listTableNames();
         foreach ($allTables as $table) {
             foreach ($this->schema->listTableForeignKeys($table) as $fk) {
