@@ -7,20 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class CategoriaMenu extends Model
+class Usuarios extends Model
 {
 
     
     use HasFactory;
 
-    protected $table = 'categorias_menu';
+    protected $table = 'users';
 
 
     protected $fillable =
         [
-        'nombre',
-        'visible_publico',
-        'activo'
+        'name',
+        'email',
+        'email_verified_at',
+        'password',
+        'remember_token'
     ];
 
 
@@ -32,12 +34,13 @@ class CategoriaMenu extends Model
     protected $casts =
         [
         'id' => 'string',
-        'nombre' => 'string',
-        'visible_publico' => 'string',
-        'activo' => 'string',
+        'name' => 'string',
+        'email' => 'string',
+        'email_verified_at' => 'datetime',
+        'password' => 'string',
+        'remember_token' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
     ];
 
 
@@ -49,9 +52,11 @@ class CategoriaMenu extends Model
      */
     public static $rules =
     [
-        'nombre' => 'required',
-        'visible_publico' => 'required',
-        'activo' => 'required',
+        'name' => 'required',
+        'email' => 'required',
+        'email_verified_at' => 'required',
+        'password' => 'required',
+        'remember_token' => 'required',
     ];
 
 

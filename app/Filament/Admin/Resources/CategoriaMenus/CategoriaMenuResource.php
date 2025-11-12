@@ -9,18 +9,20 @@ use App\Filament\Admin\Resources\CategoriaMenus\Schemas\CategoriaMenuForm;
 use App\Filament\Admin\Resources\CategoriaMenus\Tables\CategoriaMenusTable;
 use App\Models\CategoriaMenu;
 use BackedEnum;
+use UnitEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class CategoriaMenuResource extends Resource
 {
     protected static ?string $model = CategoriaMenu::class;
 
+    // 🔹 Propiedades de navegación Filament
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static UnitEnum|string|null $navigationGroup = 'Menus';
+    protected static ?string $navigationLabel = 'Categorias Menus';
 
     public static function form(Schema $schema): Schema
     {
@@ -46,13 +48,5 @@ class CategoriaMenuResource extends Resource
             'create' => CreateCategoriaMenu::route('/create'),
             'edit' => EditCategoriaMenu::route('/{record}/edit'),
         ];
-    }
-
-    public static function getRecordRouteBindingEloquentQuery(): Builder
-    {
-        return parent::getRecordRouteBindingEloquentQuery()
-            ->withoutGlobalScopes([
-                SoftDeletingScope::class,
-            ]);
     }
 }

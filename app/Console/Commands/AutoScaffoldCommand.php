@@ -28,12 +28,12 @@ class AutoScaffoldCommand extends Command
         $pdo = DB::connection()->getPdo();
 
         $doctrineConnection = DriverManager::getConnection([
-            'pdo' => $pdo,
-            'dbname'   => config('database.connections.mysql.database'),
-            'user'     => config('database.connections.mysql.username'),
-            'password' => config('database.connections.mysql.password'),
-            'host'     => config('database.connections.mysql.host'),
-            'driver'   => 'pdo_mysql',
+            'pdo'     => $pdo,
+            'dbname'  => config('database.connections.mysql.database'),
+            'user'    => config('database.connections.mysql.username'),
+            'password'=> config('database.connections.mysql.password'),
+            'host'    => config('database.connections.mysql.host'),
+            'driver'  => 'pdo_mysql',
         ]);
 
         $this->schema = $doctrineConnection->createSchemaManager();
@@ -42,19 +42,19 @@ class AutoScaffoldCommand extends Command
         $this->info("🚀 Iniciando scaffolding para {$this->modelName} ({$this->tableName})");
         $this->line("─────────────────────────────────────────────");
 
-        if (!Schema::hasTable($this->tableName)) {
+        if (! Schema::hasTable($this->tableName)) {
             $this->error("❌ La tabla '{$this->tableName}' no existe.");
             return self::FAILURE;
         }
 
-        // 1. Generar Modelo
+        // 1️⃣ Generar Modelo
         if ($this->confirm("¿Desea crear el Modelo {$this->modelName}?", true)) {
             $this->generateModel();
         }
 
-        // 2. Generar Filament Resource con Process y respuesta automática
+        // 2️⃣ Generar Filament Resource
         if ($this->confirm("¿Desea crear el Filament Resource?", true)) {
-            $this->line("⏳ Generando Filament Resource para el panel 'admin'...");
+            $this->line("⏳ Generando Filament Resource...");
 
             $process = new Process([
                 'php', 'artisan', 'make:filament-resource',
@@ -63,8 +63,7 @@ class AutoScaffoldCommand extends Command
                 '--generate',
                 '--force'
             ]);
-
-            $process->setInput("\n"); // simular ENTER en el prompt
+            $process->setInput("\n");
 
             try {
                 $process->run();
@@ -72,6 +71,42 @@ class AutoScaffoldCommand extends Command
                 if ($process->isSuccessful()) {
                     $this->info("✅ Filament Resource generado con éxito:");
                     $this->line($process->getOutput());
+
+                    // ✅ Reubicar correctamente
+                    $resourceFolder = base_path("app/Filament/Admin/Resources/{$this->modelName}s");
+                    $resourceFile = "{$resourceFolder}/{$this->modelName}Resource.php";
+                    $targetFile = base_path("app/Filament/Admin/Resources/{$this->modelName}Resource.php");
+
+                    if (File::exists($resourceFile)) {
+                        File::move($resourceFile, $targetFile);
+                        $this->info("📁 Movido correctamente a: {$targetFile}");
+                    }
+
+                    // ✅ Insertar imports y propiedades
+                    if (File::exists($targetFile)) {
+                        $this->insertNavigationProperties($targetFile);
+                    }
+
+                    // ✅ Agregar columna de acciones
+                    $tableFilePath = base_path("app/Filament/Admin/Resources/{$this->modelName}Resource/Tables/{$this->modelName}Table.php");
+                    if (File::exists($tableFilePath)) {
+                        $contents = File::get($tableFilePath);
+                        if (! Str::contains($contents, 'ActionGroup::make')) {
+                            $pattern     = '/return\s+\[(.*?)\];/s';
+                            $replacement = <<<PHP
+return [
+    Tables\Actions\ActionGroup::make([
+        Tables\Actions\ViewAction::make()->label('Ver'),
+        Tables\Actions\EditAction::make()->label('Editar'),
+        Tables\Actions\DeleteAction::make()->label('Eliminar'),
+    ]),
+];
+PHP;
+                            $modified = preg_replace($pattern, $replacement, $contents);
+                            File::put($tableFilePath, $modified);
+                            $this->info("🛠️ Columna de acciones agregada en: {$tableFilePath}");
+                        }
+                    }
                 } else {
                     $this->error("❌ Error al generar el resource:");
                     $this->line($process->getErrorOutput());
@@ -81,12 +116,12 @@ class AutoScaffoldCommand extends Command
             }
         }
 
-        // 3. Generar ApiController con Spatie QueryBuilder
+        // 3️⃣ Generar ApiController
         if ($this->confirm("¿Desea crear también un ApiController con QueryBuilder?", true)) {
             $controllerName = "{$this->modelName}ApiController";
             $controllerPath = app_path("Http/Controllers/Api/{$controllerName}.php");
 
-            if (!File::exists(app_path('Http/Controllers/Api'))) {
+            if (! File::exists(app_path('Http/Controllers/Api'))) {
                 File::makeDirectory(app_path('Http/Controllers/Api'), 0755, true);
             }
 
@@ -97,7 +132,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\\{$this->modelName};
 use Illuminate\Http\Request;
-use Spatie\QueryBuilder\QueryBuilder;
+use Spatie\\QueryBuilder\\QueryBuilder;
 use App\Http\Controllers\Controller;
 
 class {$controllerName} extends Controller
@@ -146,10 +181,10 @@ class {$controllerName} extends Controller
 EOT;
 
             File::put($controllerPath, $stub);
-            $this->info("📡 ApiController generado con QueryBuilder: App\\Http\\Controllers\\Api\\{$controllerName}");
+            $this->info("📡 ApiController generado: App\\Http\\Controllers\\Api\\{$controllerName}");
         }
 
-        // 4. Generar Seeder
+        // 4️⃣ Generar Seeder
         if ($this->confirm("¿Desea crear un Seeder para {$this->modelName}?", true)) {
             Artisan::call("make:seeder", [
                 "name" => "{$this->modelName}Seeder"
@@ -164,23 +199,47 @@ EOT;
         return self::SUCCESS;
     }
 
+    private function insertNavigationProperties(string $filePath): void
+    {
+        $contents = File::get($filePath);
+
+        // ✅ Evitar duplicados
+        if (Str::contains($contents, '$navigationGroup')) {
+            $this->warn("⚠️ Este resource ya contiene propiedades de navegación. No se insertaron nuevamente.");
+            return;
+        }
+
+        // ✅ Agregar import UnitEnum si no existe
+        if (!Str::contains($contents, 'use UnitEnum;')) {
+            $contents = preg_replace('/(use\s+BackedEnum;)/', "$1\nuse UnitEnum;", $contents, 1);
+        }
+
+        // ✅ Insertar propiedades dentro de la clase
+        $pattern = '/(protected\s+static\s+\?string\s+\$model\s+=\s+[^;]+;)/';
+        $insertion = <<<PHP
+
+    // 🔹 Propiedades de navegación Filament
+    protected static BackedEnum|string|null \$navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static UnitEnum|string|null \$navigationGroup = 'Gestión del Sistema';
+    protected static ?string \$navigationLabel = '{$this->modelName}s';
+PHP;
+
+        $newContents = preg_replace($pattern, "$1\n$insertion", $contents, 1);
+
+        File::put($filePath, $newContents);
+        $this->info("🎨 Propiedades de navegación agregadas correctamente en: {$filePath}");
+    }
+
     private function generateModel(): void
     {
         $columns = Schema::getColumnListing($this->tableName);
-
         $excluded = ['id', 'created_at', 'updated_at', 'deleted_at'];
         $fillable = array_diff($columns, $excluded);
         $fillableString = '[' . PHP_EOL . '        \'' . implode("',\n        '", $fillable) . '\'' . PHP_EOL . '    ]';
 
         $castsArray = [];
         foreach ($columns as $col) {
-            if ($col === 'id') {
-                $castsArray[$col] = 'integer';
-            } elseif (str_ends_with($col, '_at')) {
-                $castsArray[$col] = 'timestamp';
-            } else {
-                $castsArray[$col] = 'string';
-            }
+            $castsArray[$col] = str_ends_with($col, '_at') ? 'datetime' : 'string';
         }
         $castsString = '[' . PHP_EOL;
         foreach ($castsArray as $field => $type) {
@@ -198,84 +257,14 @@ EOT;
         }
         $rulesString .= '    ]';
 
-        $useSoftDeletes = in_array('deleted_at', $columns)
-            ? 'use Illuminate\\Database\\Eloquent\\SoftDeletes;' : '';
-        $softDeletesTrait = in_array('deleted_at', $columns)
-            ? 'use SoftDeletes;' : '';
-
-        $relationshipsString = $this->generateRelationships();
-
         $stub = file_get_contents(base_path('stubs/custom-model.stub'));
-
         $stub = str_replace(
-            [
-                '{{ modelNamespace }}',
-                '{{ model }}',
-                '{{ tableName }}',
-                '{{ fillable }}',
-                '{{ casts }}',
-                '{{ validationRules }}',
-                '{{ relationships }}',
-                '{{ useSoftDeletes }}',
-                '{{ softDeletesTrait }}'
-            ],
-            [
-                'App\\Models',
-                $this->modelName,
-                $this->tableName,
-                $fillableString,
-                $castsString,
-                $rulesString,
-                $relationshipsString,
-                $useSoftDeletes,
-                $softDeletesTrait
-            ],
+            ['{{ modelNamespace }}', '{{ model }}', '{{ tableName }}', '{{ fillable }}', '{{ casts }}', '{{ validationRules }}', '{{ relationships }}', '{{ useSoftDeletes }}', '{{ softDeletesTrait }}'],
+            ['App\\Models', $this->modelName, $this->tableName, $fillableString, $castsString, $rulesString, '', '', ''],
             $stub
         );
 
         file_put_contents(app_path("Models/{$this->modelName}.php"), $stub);
         $this->info("✅ Modelo generado en: App\\Models\\{$this->modelName}");
-    }
-
-    private function generateRelationships(): string
-    {
-        $foreignKeys = $this->schema->listTableForeignKeys($this->tableName);
-        $relationships = [];
-
-        foreach ($foreignKeys as $foreignKey) {
-            $localColumn = $foreignKey->getLocalColumns()[0];
-            $foreignTable = $foreignKey->getForeignTableName();
-            $foreignColumn = $foreignKey->getForeignColumns()[0];
-            $relatedModel = Str::studly(Str::singular($foreignTable));
-            $functionName = Str::camel(Str::singular($foreignTable));
-
-            $relationships[] = <<<EOT
-    public function {$functionName}()
-    {
-        return \$this->belongsTo({$relatedModel}::class, '{$localColumn}', '{$foreignColumn}');
-    }
-EOT;
-        }
-
-        $allTables = $this->schema->listTableNames();
-        foreach ($allTables as $table) {
-            foreach ($this->schema->listTableForeignKeys($table) as $fk) {
-                if ($fk->getForeignTableName() === $this->tableName) {
-                    $localColumn = $fk->getLocalColumns()[0];
-                    $foreignColumn = $fk->getForeignColumns()[0];
-                    $relatedModel = Str::studly(Str::singular($table));
-                    $functionName = Str::camel(Str::plural($table));
-
-                    $relationships[] = <<<EOT
-    public function {$functionName}()
-    {
-        return \$this->hasMany({$relatedModel}::class, '{$localColumn}', '{$foreignColumn}');
-    }
-EOT;
-                }
-            }
-        }
-
-        return implode(PHP_EOL . PHP_EOL, $relationships);
     }
 }
